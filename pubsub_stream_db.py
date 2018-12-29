@@ -30,15 +30,17 @@ def initiate_db(db_name, table_name):
 	return None
 
 def create_table(data_dict):
-	conn = sqlite3.connect(db_name)
-	c = conn.cursor()
-	#create a table with only REAL-columns. No index
-	create_columns = ' REAL, '.join(data_dict.keys()) + ' REAL'
-	create_table_query = 'CREATE TABLE IF NOT EXISTS  %s (%s) ' % (table_name, create_columns)
-	c.execute(create_table_query)
-	conn.commit()
-	conn.close()
-	return None
+    conn = sqlite3.connect(db_name)
+    c = conn.cursor()
+    id = data_dict['id']
+    datetime = data_dict['datetime']
+    data_dict = data_dict['data']
+    create_columns = ' REAL, '.join(data_dict.keys()) + ' REAL'
+    create_table_query = 'CREATE TABLE IF NOT EXISTS  %s ( id REAL, datetime REAL, %s) ' % (table_name, create_columns)
+    c.execute(create_table_query)
+    conn.commit()
+    conn.close()
+    return None
 
 
 def create_table_with_id():
@@ -47,30 +49,21 @@ def create_table_with_id():
 	return None
 	
 def insert_in_table(data_dict):
-	conn = sqlite3.connect(db_name)
-	c = conn.cursor()
-	columns = ', '.join(data_dict.keys())
-	placeholders = ':'+', :'.join(data_dict.keys())
-	query = 'INSERT INTO streaming_data (%s) VALUES (%s)' % (columns, placeholders)
-	c.execute(query, data_dict)
-	conn.commit()
-	conn.close()
+    conn = sqlite3.connect(db_name)
+    c = conn.cursor()
+    id = data_dict['id']
+    datetime = data_dict['datetime']
+    data_dict = data_dict['data']
+    columns = ', '.join(data_dict.keys())
+    placeholders = ':'+', :'.join(data_dict.keys())
+    query = 'INSERT INTO {} (id, datetime, %s) VALUES ({}, {}, %s)'.format(table_name,id,datetime) % (columns, placeholders)
+    c.execute(query, data_dict)
+    conn.commit()
+    conn.close()
 
 
 ############################
 
-def getJsonData():
-    
-    # Simulate data as dict
-    json_dict ={
-    "time":time.time(),
-    "OilTemperature":random.randrange(180,230),
-    "IntakeTemperature": random.randrange(95,115),
-    "CoolantTemperature": random.randrange(170,220)}
-
-    # Convert and return JSON
-    data_json = json.dumps(json_dict)
-    return data_json
     
 def wait_for_data(param):
     print("Waiting for first data...")
