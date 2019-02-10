@@ -12,7 +12,7 @@ def getJsonData():
     
     # Simulate data as dict
     json_dict ={
-    "id":random.randrange(1000,9999),
+    "id": "A1" if random.uniform(0, 1)> 0.5 else "A2",
     "datetime":datetime.now().timestamp(),
     "data":{
         "OilTemperature":random.randrange(180,230),

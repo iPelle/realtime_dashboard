@@ -23,25 +23,20 @@ first_data_received = 0
 counter = 0
 plot_limit = 100
 
-column_names = None
-
 app = dash.Dash('vehicle-data')
 
-
-conn = sqlite3.connect(db_name)
-c = conn.cursor()
-list_of_column_names =  "SELECT * FROM {} LIMIT {}".format(table_name, plot_limit)
-
-
-def list_of_table_column_name():
+def list_of_available_id():
     conn = sqlite3.connect(db_name)
-    c = conn.execute('select * from streaming_data LIMIT 1')
-    names = [description[0] for description in c.description]
-    conn.close()
-    return names
-    
-column_names = list_of_table_column_name()
+    query = "SELECT name FROM sqlite_master WHERE type='table'"
+    c = conn.execute(query)
+    tuple_of_tables = list(c)
+    list_of_tables = [i[0] for i in tuple_of_tables]
+    print(list_of_tables)
+    return list_of_tables
 
+list_of_id = list_of_available_id()
+print("Type and string of first ID is: {} and {}".format(list_of_id[0], type(list_of_id[0])))
+print("Length of first ID is: {}".format(len(list_of_id[0])))
 ###################################
 # App layout
 ###################################
@@ -52,10 +47,13 @@ app.layout = html.Div([
                 style={'float': 'left',
                        }),
         ]),
-    dcc.Dropdown(id='vehicle-data-name',
+    dcc.Dropdown(id='machine_id',
                  options=[{'label': s, 'value': s}
-                          for s in column_names],
-                 value=[column_names[1]],
+                          for s in list_of_id],
+                 value=[list_of_id[0]],
+                 multi=False
+                 ),
+    dcc.Dropdown(id='data-name',
                  multi=True
                  ),
     html.Div(children=html.Div(id='graphs'), className='row'),
@@ -69,45 +67,103 @@ app.layout = html.Div([
 ###################################
 
 @app.callback(
+    dash.dependencies.Output('data-name', 'options'),
+    [dash.dependencies.Input('machine_id', 'value')]
+)
+def update_data_dropdown(machine_id):
+    print("EXECUTING UPDATE_DATA_DROPDOWN")
+    
+    # Added logic here to check if list or string
+    if type(machine_id) is list:
+        print("Input is a list")
+        select_machine_id = machine_id[0]
+    else:
+        select_machine_id = machine_id
+        
+    conn = sqlite3.connect(db_name)
+    print(type(select_machine_id))
+    print("In the callback, the machine value length is: {} and the string is: {}".format(len(select_machine_id),select_machine_id))
+    query = 'select * from {} LIMIT 1'.format(select_machine_id)
+    print(query)
+    c = conn.execute(query)
+    names = [description[0] for description in c.description]
+    print(names)
+    names.remove('id')
+    names.remove('datetime')
+    conn.close()
+    return [{'label': i, 'value': i} for i in names]
+
+
+@app.callback(
     dash.dependencies.Output('graphs','children'),
-    [dash.dependencies.Input('vehicle-data-name', 'value')],
+    [dash.dependencies.Input('data-name', 'value')
+    ,dash.dependencies.Input('machine_id', 'value')
+    ],
     events=[dash.dependencies.Event('graph-update', 'interval')]
     )
-def update_graph(data_names):
+def update_graph(data_names, machine_id):
+    print("EXECUTING UPDATE_GRAPH")
+    
+    if type(machine_id) is list:
+        print("Input is a list")
+        machine_id = machine_id[0]
+        print()
+    else:
+        machine_id = machine_id
+    
     graphs = []
     conn = sqlite3.connect(db_name)
     c = conn.cursor()
-    sql_read_data = "SELECT * FROM {} ORDER BY datetime DESC LIMIT {}".format(table_name, plot_limit)
+    print("Machine_id is: {}".format(machine_id))
+    sql_read_data = 'SELECT * FROM {} ORDER BY datetime DESC LIMIT {} '.format(machine_id, plot_limit)
+    print(sql_read_data )
     df = pd.read_sql(sql_read_data, conn)
+    #print(df)
     #df['datetime']
-
-
+    #TODO: Update filtering for dropdown of machine-id
+    #TODO: Update dropdown-logic, so they depend on eachother (now alternating btween None and value, du to independency)
+    
+    try:
+        if len(data_names)>2:
+            class_choice = 'col s12 m6 l4'
+        elif len(data_names) == 2:
+            class_choice = 'col s12 m6 l6'
+        else:
+            class_choice = 'col s12'
+    except:
+        class_choice = 'col s12'
+    
+    #original
+    '''
     if len(data_names)>2:
         class_choice = 'col s12 m6 l4'
     elif len(data_names) == 2:
         class_choice = 'col s12 m6 l6'
     else:
         class_choice = 'col s12'
+'''
 
+    try:
+        for data_name in data_names:
 
-    for data_name in data_names:
+            data = go.Scatter(
+                x=list(df['datetime']),
+                y=list(df[data_name]),
+                name='Scatter',
+                fill="tozeroy",
+                fillcolor="#6897bb"
+                )
 
-        data = go.Scatter(
-            x=list(df['datetime']),
-            y=list(df[data_name]),
-            name='Scatter',
-            fill="tozeroy",
-            fillcolor="#6897bb"
-            )
-
-        graphs.append(html.Div(dcc.Graph(
-            id=data_name,
-            animate=True,
-            figure={'data': [data],'layout' : go.Layout(xaxis=dict(range=[min(df['datetime']),max(df['datetime'])]),
-                                                        yaxis=dict(range=[min(df[data_name]),max(df[data_name])]),
-                                                        margin={'l':50,'r':1,'t':45,'b':1},
-                                                        title='{}'.format(data_name))}
-            ), className=class_choice))
+            graphs.append(html.Div(dcc.Graph(
+                id=data_name,
+                animate=True,
+                figure={'data': [data],'layout' : go.Layout(xaxis=dict(range=[min(df['datetime']),max(df['datetime'])]),
+                                                            yaxis=dict(range=[min(df[data_name]),max(df[data_name])]),
+                                                            margin={'l':50,'r':1,'t':45,'b':1},
+                                                            title='{}'.format(data_name))}
+                ), className=class_choice))
+    except:
+        a = 1
 
     return graphs
 
